@@ -1,0 +1,16 @@
+{
+  "name": "mot-de-passe",
+  "version": "1.0.0",
+  "description": "Jeu Mot de Passe multijoueur - Expo + Socket.io",
+  "private": true,
+  "scripts": {
+    "start:server": "cd server && npm start",
+    "dev:server": "cd server && npm run dev",
+    "start:app": "cd app && npx expo start",
+    "install:all": "npm install && cd server && npm install && cd ../app && npm install",
+    "dev": "concurrently \"npm run dev:server\" \"npm run start:app\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

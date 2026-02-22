@@ -1,0 +1,67 @@
+{
+  "animaux": [
+    "chat", "chien", "éléphant", "dauphin", "lion", "tigre", "girafe",
+    "crocodile", "serpent", "aigle", "hibou", "perroquet", "pingouin",
+    "baleine", "requin", "tortue", "papillon", "abeille", "fourmi",
+    "araignée", "loup", "renard", "ours", "panda", "koala", "kangourou"
+  ],
+  "nourriture": [
+    "pizza", "croissant", "sushi", "hamburger", "fromage", "chocolat",
+    "glace", "gâteau", "baguette", "omelette", "salade", "soupe",
+    "pâtes", "riz", "poulet", "steak", "saumon", "crevette", "pomme",
+    "banane", "orange", "fraise", "raisin", "tomate", "carotte", "brocoli"
+  ],
+  "sport": [
+    "football", "tennis", "natation", "basketball", "volleyball",
+    "rugby", "cyclisme", "boxe", "judo", "karaté", "escalade",
+    "surf", "ski", "snowboard", "patinage", "hockey", "baseball",
+    "golf", "badminton", "handball", "athlétisme", "gymnastique",
+    "équitation", "plongée", "aviron"
+  ],
+  "metiers": [
+    "médecin", "pompier", "avocat", "professeur", "cuisinier",
+    "boulanger", "plombier", "électricien", "architecte", "pilote",
+    "astronaute", "policier", "journaliste", "photographe", "musicien",
+    "acteur", "peintre", "sculpteur", "écrivain", "ingénieur",
+    "informaticien", "comptable", "dentiste", "vétérinaire", "coiffeur"
+  ],
+  "objets": [
+    "téléphone", "parapluie", "lunettes", "montre", "clé", "portefeuille",
+    "sac", "valise", "lampe", "miroir", "brosse", "peigne", "couteau",
+    "fourchette", "cuillère", "assiette", "verre", "tasse", "bouteille",
+    "stylo", "crayon", "cahier", "livre", "ordinateur", "télévision"
+  ],
+  "lieux": [
+    "plage", "montagne", "cinéma", "restaurant", "hôpital", "école",
+    "université", "bibliothèque", "musée", "théâtre", "stade", "piscine",
+    "parc", "jardin", "forêt", "désert", "île", "volcan", "cascade",
+    "grotte", "château", "église", "tour", "pont", "gare", "aéroport"
+  ],
+  "celebrites": [
+    "Astérix", "Zidane", "Batman", "Superman", "Spiderman", "Tintin",
+    "Napoléon", "Cléopâtre", "Einstein", "Mozart", "Picasso", "Molière",
+    "Obélix", "Lucky Luke", "Gaston Lagaffe", "Spirou", "Tarzan",
+    "Robin des Bois", "Zorro", "James Bond", "Indiana Jones", "Sherlock",
+    "Hercule", "Ulysse", "Jeanne d'Arc"
+  ],
+  "concepts": [
+    "liberté", "amour", "vacances", "bonheur", "courage", "amitié",
+    "famille", "aventure", "mystère", "secret", "rêve", "espoir",
+    "confiance", "patience", "sagesse", "créativité", "imagination",
+    "nostalgie", "surprise", "victoire", "défaite", "chance", "destin",
+    "magie", "légende"
+  ],
+  "nature": [
+    "soleil", "lune", "étoile", "nuage", "pluie", "neige", "orage",
+    "arc-en-ciel", "océan", "rivière", "lac", "fleuve", "colline",
+    "vallée", "prairie", "jungle", "savane", "glacier", "falaise",
+    "récif", "aurore", "crépuscule", "brouillard", "tempête", "ouragan"
+  ],
+  "technologie": [
+    "robot", "satellite", "fusée", "drone", "tablette", "console",
+    "casque", "caméra", "antenne", "radar", "laser", "hologramme",
+    "internet", "réseau", "application", "logiciel", "algorithme",
+    "intelligence", "virtuel", "numérique", "électronique", "batterie",
+    "écran", "clavier", "souris"
+  ]
+}
