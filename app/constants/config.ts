@@ -1,7 +1,7 @@
 // Adresse du serveur - à modifier selon votre configuration
 // En développement local, utilisez l'IP de votre machine
 // Exemple: 'http://192.168.1.100:3001'
-export const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3001';
+export const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'http://motdepasse.157.180.43.90.sslip.io';
 
 // Couleurs du thème
 export const Colors = {
