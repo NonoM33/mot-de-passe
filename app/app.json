@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "scheme": "motdepasse",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -21,21 +22,15 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
       },
+      "edgeToEdgeEnabled": true,
       "package": "com.motdepasse.app"
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
-      "expo-router",
-      "expo-asset",
-      "expo-font"
-    ],
-    "experiments": {
-      "typedRoutes": true
-    },
-    "scheme": "motdepasse"
+      "expo-router"
+    ]
   }
 }

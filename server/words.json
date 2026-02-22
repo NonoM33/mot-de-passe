@@ -1,67 +1,123 @@
 {
-  "animaux": [
-    "chat", "chien", "éléphant", "dauphin", "lion", "tigre", "girafe",
-    "crocodile", "serpent", "aigle", "hibou", "perroquet", "pingouin",
-    "baleine", "requin", "tortue", "papillon", "abeille", "fourmi",
-    "araignée", "loup", "renard", "ours", "panda", "koala", "kangourou"
-  ],
-  "nourriture": [
-    "pizza", "croissant", "sushi", "hamburger", "fromage", "chocolat",
-    "glace", "gâteau", "baguette", "omelette", "salade", "soupe",
-    "pâtes", "riz", "poulet", "steak", "saumon", "crevette", "pomme",
-    "banane", "orange", "fraise", "raisin", "tomate", "carotte", "brocoli"
-  ],
-  "sport": [
-    "football", "tennis", "natation", "basketball", "volleyball",
-    "rugby", "cyclisme", "boxe", "judo", "karaté", "escalade",
-    "surf", "ski", "snowboard", "patinage", "hockey", "baseball",
-    "golf", "badminton", "handball", "athlétisme", "gymnastique",
-    "équitation", "plongée", "aviron"
-  ],
-  "metiers": [
-    "médecin", "pompier", "avocat", "professeur", "cuisinier",
-    "boulanger", "plombier", "électricien", "architecte", "pilote",
-    "astronaute", "policier", "journaliste", "photographe", "musicien",
-    "acteur", "peintre", "sculpteur", "écrivain", "ingénieur",
-    "informaticien", "comptable", "dentiste", "vétérinaire", "coiffeur"
-  ],
-  "objets": [
-    "téléphone", "parapluie", "lunettes", "montre", "clé", "portefeuille",
-    "sac", "valise", "lampe", "miroir", "brosse", "peigne", "couteau",
-    "fourchette", "cuillère", "assiette", "verre", "tasse", "bouteille",
-    "stylo", "crayon", "cahier", "livre", "ordinateur", "télévision"
-  ],
-  "lieux": [
-    "plage", "montagne", "cinéma", "restaurant", "hôpital", "école",
-    "université", "bibliothèque", "musée", "théâtre", "stade", "piscine",
-    "parc", "jardin", "forêt", "désert", "île", "volcan", "cascade",
-    "grotte", "château", "église", "tour", "pont", "gare", "aéroport"
-  ],
-  "celebrites": [
-    "Astérix", "Zidane", "Batman", "Superman", "Spiderman", "Tintin",
-    "Napoléon", "Cléopâtre", "Einstein", "Mozart", "Picasso", "Molière",
-    "Obélix", "Lucky Luke", "Gaston Lagaffe", "Spirou", "Tarzan",
-    "Robin des Bois", "Zorro", "James Bond", "Indiana Jones", "Sherlock",
-    "Hercule", "Ulysse", "Jeanne d'Arc"
-  ],
-  "concepts": [
-    "liberté", "amour", "vacances", "bonheur", "courage", "amitié",
-    "famille", "aventure", "mystère", "secret", "rêve", "espoir",
-    "confiance", "patience", "sagesse", "créativité", "imagination",
-    "nostalgie", "surprise", "victoire", "défaite", "chance", "destin",
-    "magie", "légende"
-  ],
-  "nature": [
-    "soleil", "lune", "étoile", "nuage", "pluie", "neige", "orage",
-    "arc-en-ciel", "océan", "rivière", "lac", "fleuve", "colline",
-    "vallée", "prairie", "jungle", "savane", "glacier", "falaise",
-    "récif", "aurore", "crépuscule", "brouillard", "tempête", "ouragan"
-  ],
-  "technologie": [
-    "robot", "satellite", "fusée", "drone", "tablette", "console",
-    "casque", "caméra", "antenne", "radar", "laser", "hologramme",
-    "internet", "réseau", "application", "logiciel", "algorithme",
-    "intelligence", "virtuel", "numérique", "électronique", "batterie",
-    "écran", "clavier", "souris"
-  ]
+  "categories": {
+    "animaux": {
+      "emoji": "🐾",
+      "name": "Animaux",
+      "words": [
+        "Chien", "Chat", "Éléphant", "Girafe", "Lion", "Tigre", "Ours", "Loup",
+        "Renard", "Lapin", "Souris", "Cheval", "Vache", "Cochon", "Mouton",
+        "Poule", "Canard", "Aigle", "Hibou", "Serpent", "Crocodile", "Dauphin",
+        "Baleine", "Requin", "Tortue", "Grenouille", "Papillon", "Abeille",
+        "Fourmi", "Araignée", "Singe", "Gorille", "Kangourou", "Koala", "Panda"
+      ]
+    },
+    "nourriture": {
+      "emoji": "🍕",
+      "name": "Nourriture",
+      "words": [
+        "Pizza", "Hamburger", "Spaghetti", "Croissant", "Baguette", "Fromage",
+        "Chocolat", "Gâteau", "Glace", "Fraise", "Banane", "Pomme", "Orange",
+        "Raisin", "Salade", "Tomate", "Carotte", "Oignon", "Ail", "Poisson",
+        "Poulet", "Steak", "Œuf", "Lait", "Beurre", "Pain", "Soupe", "Riz",
+        "Pâtes", "Saucisse", "Jambon", "Crêpe", "Tarte", "Bonbon", "Miel"
+      ]
+    },
+    "sport": {
+      "emoji": "⚽",
+      "name": "Sport",
+      "words": [
+        "Football", "Basketball", "Tennis", "Natation", "Cyclisme", "Boxe",
+        "Judo", "Karaté", "Escrime", "Rugby", "Volleyball", "Handball",
+        "Golf", "Ski", "Snowboard", "Surf", "Plongée", "Escalade", "Marathon",
+        "Sprint", "Saut", "Gymnastique", "Danse", "Yoga", "Musculation",
+        "Équitation", "Tir à l'arc", "Badminton", "Ping-pong", "Hockey",
+        "Patinage", "Aviron", "Voile", "Athlétisme", "Triathlon"
+      ]
+    },
+    "metiers": {
+      "emoji": "💼",
+      "name": "Métiers",
+      "words": [
+        "Médecin", "Avocat", "Professeur", "Pompier", "Policier", "Cuisinier",
+        "Boulanger", "Coiffeur", "Plombier", "Électricien", "Architecte",
+        "Ingénieur", "Pilote", "Astronaute", "Journaliste", "Photographe",
+        "Acteur", "Chanteur", "Musicien", "Peintre", "Sculpteur", "Écrivain",
+        "Dentiste", "Vétérinaire", "Pharmacien", "Infirmier", "Facteur",
+        "Agriculteur", "Pêcheur", "Maçon", "Menuisier", "Mécanicien",
+        "Serveur", "Vendeur", "Comptable"
+      ]
+    },
+    "objets": {
+      "emoji": "🏠",
+      "name": "Objets",
+      "words": [
+        "Téléphone", "Ordinateur", "Télévision", "Réfrigérateur", "Machine à laver",
+        "Aspirateur", "Lit", "Chaise", "Table", "Canapé", "Lampe", "Miroir",
+        "Horloge", "Parapluie", "Lunettes", "Montre", "Portefeuille", "Clé",
+        "Livre", "Stylo", "Ciseaux", "Brosse", "Peigne", "Serviette", "Savon",
+        "Bouteille", "Assiette", "Fourchette", "Couteau", "Cuillère", "Verre",
+        "Tasse", "Casserole", "Poêle", "Valise"
+      ]
+    },
+    "lieux": {
+      "emoji": "📍",
+      "name": "Lieux",
+      "words": [
+        "École", "Hôpital", "Restaurant", "Cinéma", "Musée", "Bibliothèque",
+        "Supermarché", "Banque", "Poste", "Gare", "Aéroport", "Plage", "Montagne",
+        "Forêt", "Désert", "Île", "Lac", "Rivière", "Cascade", "Grotte",
+        "Château", "Église", "Mosquée", "Temple", "Stade", "Piscine", "Parc",
+        "Zoo", "Ferme", "Usine", "Bureau", "Garage", "Jardin", "Terrasse", "Balcon"
+      ]
+    },
+    "cinema": {
+      "emoji": "🎬",
+      "name": "Cinéma & Séries",
+      "words": [
+        "Matrix", "Titanic", "Avatar", "Inception", "Gladiator", "Intouchables",
+        "Amélie", "Avengers", "Star Wars", "Harry Potter", "James Bond",
+        "Batman", "Superman", "Spider-Man", "Joker", "Frozen", "Toy Story",
+        "Shrek", "Némo", "Roi Lion", "Stranger Things", "Game of Thrones",
+        "Breaking Bad", "Friends", "The Office", "Squid Game", "Money Heist",
+        "Narcos", "Peaky Blinders", "Walking Dead", "Vikings", "Mandalorian",
+        "Westworld", "Sherlock", "Black Mirror"
+      ]
+    },
+    "concepts": {
+      "emoji": "💡",
+      "name": "Concepts",
+      "words": [
+        "Amour", "Liberté", "Justice", "Paix", "Guerre", "Bonheur", "Tristesse",
+        "Courage", "Peur", "Espoir", "Rêve", "Cauchemar", "Temps", "Espace",
+        "Infini", "Destin", "Chance", "Malchance", "Vérité", "Mensonge",
+        "Secret", "Mystère", "Magie", "Science", "Art", "Beauté", "Laideur",
+        "Richesse", "Pauvreté", "Pouvoir", "Sagesse", "Folie", "Génie",
+        "Talent", "Passion"
+      ]
+    },
+    "musique": {
+      "emoji": "🎵",
+      "name": "Musique",
+      "words": [
+        "Guitare", "Piano", "Batterie", "Violon", "Trompette", "Saxophone",
+        "Flûte", "Harpe", "Accordéon", "Harmonica", "Rock", "Jazz", "Classique",
+        "Hip-hop", "Rap", "Reggae", "Blues", "Country", "Électro", "Techno",
+        "Opéra", "Chorale", "Orchestre", "Concert", "Festival", "Karaoké",
+        "Microphone", "Amplificateur", "Vinyle", "Casque", "Partition",
+        "Mélodie", "Rythme", "Tempo", "Refrain"
+      ]
+    },
+    "geographie": {
+      "emoji": "🌍",
+      "name": "Géographie",
+      "words": [
+        "France", "Espagne", "Italie", "Allemagne", "Angleterre", "États-Unis",
+        "Canada", "Brésil", "Argentine", "Japon", "Chine", "Inde", "Australie",
+        "Égypte", "Maroc", "Afrique du Sud", "Paris", "Londres", "New York",
+        "Tokyo", "Rome", "Berlin", "Madrid", "Barcelone", "Amsterdam", "Venise",
+        "Sydney", "Dubai", "Rio de Janeiro", "Le Caire", "Moscou", "Pékin",
+        "Los Angeles", "Miami", "Las Vegas"
+      ]
+    }
+  }
 }

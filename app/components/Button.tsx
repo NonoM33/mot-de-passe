@@ -1,122 +1,126 @@
 import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ViewStyle,
-  TextStyle,
-} from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from 'react-native-reanimated';
-import { Colors } from '@/constants/config';
+import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
 
 interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'outline';
+  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'outline' | 'ghost';
+  size?: 'small' | 'medium' | 'large';
   disabled?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  haptic?: boolean;
 }
-
-const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 export function Button({
   title,
   onPress,
   variant = 'primary',
+  size = 'medium',
   disabled = false,
   style,
   textStyle,
+  haptic = true,
 }: ButtonProps) {
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const handlePressIn = () => {
-    scale.value = withSpring(0.95);
-  };
-
-  const handlePressOut = () => {
-    scale.value = withSpring(1);
-  };
-
   const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (haptic) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     onPress();
   };
 
-  const getBackgroundColor = () => {
-    if (disabled) return Colors.textMuted;
-    switch (variant) {
-      case 'primary':
-        return Colors.primary;
-      case 'secondary':
-        return Colors.secondary;
-      case 'outline':
-        return 'transparent';
-      default:
-        return Colors.primary;
-    }
-  };
-
-  const getTextColor = () => {
-    if (disabled) return Colors.textSecondary;
-    switch (variant) {
-      case 'primary':
-        return Colors.background;
-      case 'secondary':
-        return Colors.text;
-      case 'outline':
-        return Colors.primary;
-      default:
-        return Colors.background;
-    }
-  };
-
   return (
-    <AnimatedTouchable
+    <TouchableOpacity
       style={[
         styles.button,
-        {
-          backgroundColor: getBackgroundColor(),
-          borderColor: variant === 'outline' ? Colors.primary : 'transparent',
-          borderWidth: variant === 'outline' ? 2 : 0,
-        },
-        animatedStyle,
+        styles[variant],
+        styles[size],
+        disabled && styles.disabled,
         style,
       ]}
       onPress={handlePress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
       disabled={disabled}
       activeOpacity={0.8}
     >
-      <Text style={[styles.text, { color: getTextColor() }, textStyle]}>
+      <Text style={[styles.text, styles[`${variant}Text`], styles[`${size}Text`], textStyle]}>
         {title}
       </Text>
-    </AnimatedTouchable>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  primary: {
+    backgroundColor: colors.primary,
+  },
+  secondary: {
+    backgroundColor: colors.secondary,
+  },
+  success: {
+    backgroundColor: colors.success,
+  },
+  danger: {
+    backgroundColor: colors.error,
+  },
+  outline: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+  },
+  small: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  medium: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  large: {
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+  },
+  disabled: {
+    opacity: 0.5,
+  },
   text: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  primaryText: {
+    color: '#000',
+  },
+  secondaryText: {
+    color: '#FFF',
+  },
+  successText: {
+    color: '#000',
+  },
+  dangerText: {
+    color: '#FFF',
+  },
+  outlineText: {
+    color: colors.primary,
+  },
+  ghostText: {
+    color: colors.text,
+  },
+  smallText: {
+    fontSize: fontSize.sm,
+  },
+  mediumText: {
+    fontSize: fontSize.md,
+  },
+  largeText: {
+    fontSize: fontSize.xl,
   },
 });

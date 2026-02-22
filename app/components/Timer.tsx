@@ -4,72 +4,122 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  interpolateColor,
+  withRepeat,
+  withSequence,
+  Easing,
 } from 'react-native-reanimated';
-import { Colors } from '@/constants/config';
+import * as Haptics from 'expo-haptics';
+import { colors, fontSize } from '../constants/theme';
 
 interface TimerProps {
-  timeLeft: number;
-  maxTime: number;
+  seconds: number;
+  totalSeconds: number;
+  size?: number;
 }
 
-export function Timer({ timeLeft, maxTime }: TimerProps) {
-  const progress = useSharedValue(timeLeft / maxTime);
+export function Timer({ seconds, totalSeconds, size = 120 }: TimerProps) {
+  const progress = seconds / totalSeconds;
+  const isLow = seconds <= 5;
+  const circumference = 2 * Math.PI * (size / 2 - 8);
+  const strokeDashoffset = circumference * (1 - progress);
+
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
 
   useEffect(() => {
-    progress.value = withTiming(timeLeft / maxTime, { duration: 200 });
-  }, [timeLeft, maxTime]);
+    if (isLow && seconds > 0) {
+      scale.value = withSequence(
+        withTiming(1.1, { duration: 100 }),
+        withTiming(1, { duration: 100 })
+      );
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    }
+  }, [seconds, isLow]);
 
-  const barStyle = useAnimatedStyle(() => {
-    const backgroundColor = interpolateColor(
-      progress.value,
-      [0, 0.3, 1],
-      [Colors.error, Colors.warning, Colors.primary]
-    );
+  useEffect(() => {
+    if (isLow) {
+      opacity.value = withRepeat(
+        withSequence(
+          withTiming(0.5, { duration: 250 }),
+          withTiming(1, { duration: 250 })
+        ),
+        -1,
+        true
+      );
+    } else {
+      opacity.value = 1;
+    }
+  }, [isLow]);
 
-    return {
-      width: `${progress.value * 100}%`,
-      backgroundColor,
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  const timerColor = isLow ? colors.error : colors.primary;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.barBackground}>
-        <Animated.View style={[styles.bar, barStyle]} />
+    <Animated.View style={[styles.container, { width: size, height: size }, animatedStyle]}>
+      <View
+        style={[
+          styles.svgContainer,
+          { width: size, height: size }
+        ]}
+      >
+        {/* Background circle */}
+        <View
+          style={[
+            styles.circle,
+            {
+              width: size - 16,
+              height: size - 16,
+              borderRadius: (size - 16) / 2,
+              borderColor: colors.surfaceLight,
+            }
+          ]}
+        />
+        {/* Progress circle - using view border workaround */}
+        <View
+          style={[
+            styles.circle,
+            styles.progressCircle,
+            {
+              width: size - 16,
+              height: size - 16,
+              borderRadius: (size - 16) / 2,
+              borderColor: timerColor,
+              transform: [{ rotate: '-90deg' }],
+            }
+          ]}
+        />
       </View>
-      <Text style={[styles.time, timeLeft <= 5 && styles.timeCritical]}>
-        {timeLeft}s
+      <Text style={[styles.text, { color: timerColor, fontSize: size / 3 }]}>
+        {seconds}
       </Text>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'center',
   },
-  barBackground: {
-    flex: 1,
-    height: 8,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: 4,
-    overflow: 'hidden',
+  svgContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  bar: {
-    height: '100%',
-    borderRadius: 4,
+  circle: {
+    position: 'absolute',
+    borderWidth: 8,
   },
-  time: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.text,
-    minWidth: 50,
-    textAlign: 'right',
+  progressCircle: {
+    borderLeftColor: 'transparent',
+    borderBottomColor: 'transparent',
   },
-  timeCritical: {
-    color: Colors.error,
+  text: {
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
   },
 });

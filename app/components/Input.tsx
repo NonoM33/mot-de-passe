@@ -1,6 +1,6 @@
 import React from 'react';
 import { TextInput, StyleSheet, View, Text, ViewStyle } from 'react-native';
-import { Colors } from '@/constants/config';
+import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
 
 interface InputProps {
   value: string;
@@ -10,7 +10,7 @@ interface InputProps {
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   maxLength?: number;
   style?: ViewStyle;
-  onSubmitEditing?: () => void;
+  large?: boolean;
 }
 
 export function Input({
@@ -21,21 +21,19 @@ export function Input({
   autoCapitalize = 'none',
   maxLength,
   style,
-  onSubmitEditing,
+  large = false,
 }: InputProps) {
   return (
     <View style={[styles.container, style]}>
       {label && <Text style={styles.label}>{label}</Text>}
       <TextInput
-        style={styles.input}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={colors.textDim}
         autoCapitalize={autoCapitalize}
         maxLength={maxLength}
-        onSubmitEditing={onSubmitEditing}
-        returnKeyType="done"
+        style={[styles.input, large && styles.inputLarge]}
       />
     </View>
   );
@@ -46,20 +44,24 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   label: {
-    color: Colors.textSecondary,
-    fontSize: 14,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    marginBottom: spacing.xs,
   },
   input: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    fontSize: 18,
-    color: Colors.text,
-    borderWidth: 2,
-    borderColor: Colors.surfaceLight,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    color: colors.text,
+    fontSize: fontSize.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceLight,
+  },
+  inputLarge: {
+    fontSize: fontSize.xl,
+    paddingVertical: spacing.lg,
+    textAlign: 'center',
+    letterSpacing: 8,
+    fontWeight: '700',
   },
 });

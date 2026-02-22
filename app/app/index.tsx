@@ -1,37 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import { Button } from '@/components/Button';
-import { Input } from '@/components/Input';
-import { useSocket } from '@/contexts/SocketContext';
-import { Colors, GameConfig } from '@/constants/config';
-
-type Mode = 'home' | 'create' | 'join';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  withDelay,
+} from 'react-native-reanimated';
+import { useSocket } from '../contexts/SocketContext';
+import { Button } from '../components/Button';
+import { Input } from '../components/Input';
+import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
 
 export default function HomeScreen() {
-  const router = useRouter();
-  const { connected, roomCode, error, createRoom, joinRoom, clearError } = useSocket();
-
-  const [mode, setMode] = useState<Mode>('home');
   const [pseudo, setPseudo] = useState('');
-  const [code, setCode] = useState('');
-  const [rounds, setRounds] = useState(GameConfig.defaultRounds.toString());
+  const [roomCode, setRoomCode] = useState('');
+  const [showJoin, setShowJoin] = useState(false);
+
+  const { isConnected, createRoom, joinRoom, roomCode: joinedRoom, error, clearError } = useSocket();
+
+  const logoScale = useSharedValue(1);
+  const logoOpacity = useSharedValue(0);
 
   useEffect(() => {
-    if (roomCode) {
+    logoOpacity.value = withTiming(1, { duration: 500 });
+    logoScale.value = withRepeat(
+      withSequence(
+        withTiming(1.05, { duration: 2000 }),
+        withTiming(1, { duration: 2000 })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  useEffect(() => {
+    if (joinedRoom) {
       router.push('/lobby');
     }
-  }, [roomCode]);
+  }, [joinedRoom]);
 
   useEffect(() => {
     if (error) {
@@ -39,141 +49,103 @@ export default function HomeScreen() {
     }
   }, [error]);
 
+  const logoAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: logoScale.value }],
+    opacity: logoOpacity.value,
+  }));
+
   const handleCreate = () => {
     if (!pseudo.trim()) {
-      Alert.alert('Erreur', 'Entre ton pseudo');
+      Alert.alert('Erreur', 'Entre ton pseudo !');
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    createRoom(pseudo.trim(), parseInt(rounds) || GameConfig.defaultRounds);
+    createRoom(pseudo.trim());
   };
 
   const handleJoin = () => {
     if (!pseudo.trim()) {
-      Alert.alert('Erreur', 'Entre ton pseudo');
+      Alert.alert('Erreur', 'Entre ton pseudo !');
       return;
     }
-    if (!code.trim() || code.length !== 4) {
+    if (roomCode.length !== 4) {
       Alert.alert('Erreur', 'Le code doit faire 4 lettres');
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    joinRoom(code.trim().toUpperCase(), pseudo.trim());
+    joinRoom(roomCode.toUpperCase(), pseudo.trim());
   };
-
-  const renderHome = () => (
-    <Animated.View entering={FadeInDown.delay(200)} style={styles.content}>
-      <View style={styles.buttonGroup}>
-        <Button
-          title="Créer une partie"
-          onPress={() => setMode('create')}
-          variant="primary"
-        />
-        <Button
-          title="Rejoindre"
-          onPress={() => setMode('join')}
-          variant="outline"
-        />
-      </View>
-    </Animated.View>
-  );
-
-  const renderCreate = () => (
-    <Animated.View entering={FadeInUp} style={styles.content}>
-      <Input
-        label="Ton pseudo"
-        value={pseudo}
-        onChangeText={setPseudo}
-        placeholder="Entre ton pseudo..."
-        maxLength={15}
-        autoCapitalize="words"
-      />
-
-      <Input
-        label="Nombre de mots"
-        value={rounds}
-        onChangeText={setRounds}
-        placeholder="10"
-        maxLength={2}
-        style={{ marginTop: 16 }}
-      />
-
-      <View style={styles.buttonGroup}>
-        <Button
-          title="Créer"
-          onPress={handleCreate}
-          disabled={!connected || !pseudo.trim()}
-        />
-        <Button
-          title="Retour"
-          onPress={() => setMode('home')}
-          variant="outline"
-        />
-      </View>
-    </Animated.View>
-  );
-
-  const renderJoin = () => (
-    <Animated.View entering={FadeInUp} style={styles.content}>
-      <Input
-        label="Ton pseudo"
-        value={pseudo}
-        onChangeText={setPseudo}
-        placeholder="Entre ton pseudo..."
-        maxLength={15}
-        autoCapitalize="words"
-      />
-
-      <Input
-        label="Code de la partie"
-        value={code}
-        onChangeText={(text) => setCode(text.toUpperCase())}
-        placeholder="ABCD"
-        maxLength={4}
-        autoCapitalize="characters"
-        style={{ marginTop: 16 }}
-      />
-
-      <View style={styles.buttonGroup}>
-        <Button
-          title="Rejoindre"
-          onPress={handleJoin}
-          disabled={!connected || !pseudo.trim() || code.length !== 4}
-        />
-        <Button
-          title="Retour"
-          onPress={() => setMode('home')}
-          variant="outline"
-        />
-      </View>
-    </Animated.View>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
+        style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
       >
-        <Animated.View entering={FadeInDown} style={styles.header}>
-          <Text style={styles.title}>MOT DE</Text>
-          <Text style={styles.titleAccent}>PASSE</Text>
-          <Text style={styles.subtitle}>Le jeu des indices</Text>
+        <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
+          <Text style={styles.logoEmoji}>🔐</Text>
+          <Text style={styles.title}>MOT DE PASSE</Text>
+          <Text style={styles.subtitle}>Le jeu en équipe</Text>
         </Animated.View>
 
-        {mode === 'home' && renderHome()}
-        {mode === 'create' && renderCreate()}
-        {mode === 'join' && renderJoin()}
+        <View style={styles.form}>
+          <Input
+            value={pseudo}
+            onChangeText={setPseudo}
+            placeholder="Ton pseudo"
+            label="Comment tu t'appelles ?"
+            maxLength={15}
+            autoCapitalize="words"
+          />
+
+          {!showJoin ? (
+            <View style={styles.buttons}>
+              <Button
+                title="CRÉER UNE PARTIE"
+                onPress={handleCreate}
+                variant="primary"
+                size="large"
+                disabled={!isConnected}
+              />
+              <Button
+                title="REJOINDRE"
+                onPress={() => setShowJoin(true)}
+                variant="outline"
+                size="large"
+              />
+            </View>
+          ) : (
+            <View style={styles.joinSection}>
+              <Input
+                value={roomCode}
+                onChangeText={(text) => setRoomCode(text.toUpperCase())}
+                placeholder="ABCD"
+                label="Code de la partie"
+                maxLength={4}
+                autoCapitalize="characters"
+                large
+              />
+              <View style={styles.buttons}>
+                <Button
+                  title="REJOINDRE LA PARTIE"
+                  onPress={handleJoin}
+                  variant="success"
+                  size="large"
+                  disabled={!isConnected || roomCode.length !== 4}
+                />
+                <Button
+                  title="Retour"
+                  onPress={() => setShowJoin(false)}
+                  variant="ghost"
+                  size="medium"
+                />
+              </View>
+            </View>
+          )}
+        </View>
 
         <View style={styles.status}>
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: connected ? Colors.primary : Colors.error },
-            ]}
-          />
+          <View style={[styles.statusDot, isConnected ? styles.connected : styles.disconnected]} />
           <Text style={styles.statusText}>
-            {connected ? 'Connecté' : 'Connexion...'}
+            {isConnected ? 'Connecté au serveur' : 'Connexion en cours...'}
           </Text>
         </View>
       </KeyboardAvoidingView>
@@ -184,58 +156,62 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  keyboardView: {
-    flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 48,
-  },
-  title: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: Colors.text,
-    letterSpacing: 4,
-  },
-  titleAccent: {
-    fontSize: 64,
-    fontWeight: '900',
-    color: Colors.primary,
-    letterSpacing: 8,
-    marginTop: -10,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    marginTop: 8,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+    backgroundColor: colors.background,
   },
   content: {
-    gap: 16,
+    flex: 1,
+    padding: spacing.lg,
+    justifyContent: 'center',
   },
-  buttonGroup: {
-    gap: 12,
-    marginTop: 24,
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.xxl,
+  },
+  logoEmoji: {
+    fontSize: 72,
+    marginBottom: spacing.md,
+  },
+  title: {
+    fontSize: fontSize.mega,
+    fontWeight: '900',
+    color: colors.text,
+    textAlign: 'center',
+    letterSpacing: 2,
+  },
+  subtitle: {
+    fontSize: fontSize.lg,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+  },
+  form: {
+    gap: spacing.lg,
+  },
+  buttons: {
+    gap: spacing.md,
+  },
+  joinSection: {
+    gap: spacing.lg,
   },
   status: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 48,
+    marginTop: spacing.xxl,
   },
   statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
+    marginRight: spacing.sm,
+  },
+  connected: {
+    backgroundColor: colors.success,
+  },
+  disconnected: {
+    backgroundColor: colors.error,
   },
   statusText: {
-    color: Colors.textSecondary,
-    fontSize: 14,
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
   },
 });

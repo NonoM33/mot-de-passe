@@ -1,607 +1,637 @@
 const express = require('express');
-const http = require('http');
+const { createServer } = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const words = require('./words.json');
+const wordsData = require('./words.json');
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 
-const server = http.createServer(app);
-const io = new Server(server, {
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
+    origin: "*",
+    methods: ["GET", "POST"]
   }
 });
 
-const PORT = process.env.PORT || 3001;
-
-// État des rooms
+// In-memory storage
 const rooms = new Map();
+const playerRooms = new Map();
 
-// Génère un code de room à 4 lettres
+// Team colors
+const TEAM_COLORS = [
+  { name: 'Bleu', color: '#4A9EFF' },
+  { name: 'Rouge', color: '#FF4A6E' },
+  { name: 'Vert', color: '#4AFF8B' },
+  { name: 'Orange', color: '#FF8B4A' }
+];
+
+// Generate room code (4 letters)
 function generateRoomCode() {
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  let code;
-  do {
-    code = '';
-    for (let i = 0; i < 4; i++) {
-      code += letters[Math.floor(Math.random() * letters.length)];
-    }
-  } while (rooms.has(code));
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += letters[Math.floor(Math.random() * letters.length)];
+  }
   return code;
 }
 
-// Sélectionne un mot aléatoire
-function getRandomWord(usedWords = []) {
-  const allCategories = Object.keys(words);
-  const category = allCategories[Math.floor(Math.random() * allCategories.length)];
-  const categoryWords = words[category].filter(w => !usedWords.includes(w));
+// Get words for selected categories
+function getWordsForCategories(categories, count) {
+  const allWords = [];
 
-  if (categoryWords.length === 0) {
-    // Toutes les catégories épuisées, on réinitialise
-    const freshWords = words[category];
-    return {
-      word: freshWords[Math.floor(Math.random() * freshWords.length)],
-      category
-    };
+  for (const catKey of categories) {
+    const category = wordsData.categories[catKey];
+    if (category) {
+      category.words.forEach(word => {
+        allWords.push({ word, category: category.name, emoji: category.emoji });
+      });
+    }
   }
+
+  // Shuffle and pick
+  const shuffled = allWords.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+// Create initial room state
+function createRoom(hostId, hostName) {
+  const code = generateRoomCode();
+
+  const room = {
+    code,
+    hostId,
+    players: [{
+      id: hostId,
+      name: hostName,
+      teamIndex: 0,
+      isHost: true
+    }],
+    settings: {
+      wordsPerRound: 10,
+      timerDuration: 45,
+      categories: Object.keys(wordsData.categories)
+    },
+    teams: [
+      { name: 'Bleu', color: '#4A9EFF', players: [hostId], score: 0 },
+      { name: 'Rouge', color: '#FF4A6E', players: [], score: 0 }
+    ],
+    gameState: null
+  };
+
+  rooms.set(code, room);
+  return room;
+}
+
+// Game state management
+function createGameState(room) {
+  const words = getWordsForCategories(
+    room.settings.categories,
+    room.settings.wordsPerRound * room.teams.filter(t => t.players.length > 0).length
+  );
+
+  // Determine play order (teams take turns)
+  const activeTeams = room.teams
+    .map((team, index) => ({ ...team, teamIndex: index }))
+    .filter(team => team.players.length > 0);
 
   return {
-    word: categoryWords[Math.floor(Math.random() * categoryWords.length)],
-    category
+    phase: 'ready', // ready, playing, roundEnd, gameOver
+    words,
+    currentWordIndex: 0,
+    currentTeamIndex: 0,
+    currentGiverIndex: {}, // Track giver rotation per team
+    roundNumber: 1,
+    totalRounds: activeTeams.length,
+    wordsFound: [],
+    wordsSkipped: [],
+    timer: room.settings.timerDuration,
+    timerInterval: null,
+    hintsGiven: 0,
+    activeTeams
   };
 }
 
-// Valide un indice
-function validateClue(clue, secretWord) {
-  if (!clue || typeof clue !== 'string') return { valid: false, reason: 'Indice invalide' };
-
-  const cleanClue = clue.trim().toLowerCase();
-  const cleanSecret = secretWord.toLowerCase();
-
-  // Pas de phrase (max 1 mot)
-  if (cleanClue.includes(' ')) {
-    return { valid: false, reason: 'Un seul mot autorisé !' };
-  }
-
-  // Pas le mot lui-même
-  if (cleanClue === cleanSecret) {
-    return { valid: false, reason: 'Tu ne peux pas donner le mot lui-même !' };
-  }
-
-  // Pas un dérivé direct (commence ou finit pareil)
-  if (cleanClue.length > 3 && cleanSecret.length > 3) {
-    const root = cleanSecret.slice(0, Math.min(4, cleanSecret.length));
-    if (cleanClue.startsWith(root) || cleanSecret.startsWith(cleanClue.slice(0, 4))) {
-      return { valid: false, reason: 'Mot trop proche du mot secret !' };
-    }
-  }
-
-  // Pas trop long
-  if (cleanClue.length > 30) {
-    return { valid: false, reason: 'Indice trop long !' };
-  }
-
-  return { valid: true };
+function getCurrentGiver(room) {
+  const gameState = room.gameState;
+  const team = gameState.activeTeams[gameState.currentTeamIndex];
+  const giverRotation = gameState.currentGiverIndex[team.teamIndex] || 0;
+  const playerId = team.players[giverRotation % team.players.length];
+  return room.players.find(p => p.id === playerId);
 }
 
-// Vérifie si la réponse est correcte
-function checkAnswer(answer, secretWord) {
-  if (!answer || typeof answer !== 'string') return false;
-  const cleanAnswer = answer.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const cleanSecret = secretWord.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return cleanAnswer === cleanSecret;
-}
-
-// Crée les équipes automatiquement
-function createTeams(players) {
-  const shuffled = [...players].sort(() => Math.random() - 0.5);
-  const teams = [];
-
-  for (let i = 0; i < shuffled.length; i += 2) {
-    const team = {
-      id: teams.length,
-      players: [shuffled[i]],
-      score: 0
-    };
-    if (shuffled[i + 1]) {
-      team.players.push(shuffled[i + 1]);
-    }
-    teams.push(team);
-  }
-
-  return teams;
-}
-
-// Initialise un nouveau tour
-function initRound(room) {
-  const { word, category } = getRandomWord(room.usedWords);
-  room.usedWords.push(word);
-
-  room.currentRound = {
-    word,
-    category,
-    clues: [],
-    clueCount: 0,
-    phase: 'giving-clue', // giving-clue, guessing, stealing, result
-    timeLeft: 30,
-    activeTeamIndex: room.currentTeamIndex,
-    giverIndex: room.teams[room.currentTeamIndex].currentGiverIndex || 0
-  };
-
-  // Alterner le donneur dans l'équipe
-  const team = room.teams[room.currentTeamIndex];
-  team.currentGiverIndex = (team.currentGiverIndex || 0 + 1) % team.players.length;
-}
-
-// Passe à l'équipe suivante
-function nextTeam(room) {
-  room.currentTeamIndex = (room.currentTeamIndex + 1) % room.teams.length;
-  room.roundNumber++;
-}
-
-// Broadcast l'état du jeu à tous les joueurs
-function broadcastGameState(roomCode) {
-  const room = rooms.get(roomCode);
-  if (!room) return;
-
-  room.players.forEach(player => {
-    const socket = io.sockets.sockets.get(player.socketId);
-    if (!socket) return;
-
-    const isGiver = room.currentRound &&
-      room.teams[room.currentRound.activeTeamIndex]?.players[room.currentRound.giverIndex]?.id === player.id;
-
-    const state = {
-      phase: room.phase,
-      players: room.players.map(p => ({ id: p.id, pseudo: p.pseudo })),
-      teams: room.teams.map(t => ({
-        id: t.id,
-        players: t.players.map(p => ({ id: p.id, pseudo: p.pseudo })),
-        score: t.score
-      })),
-      currentTeamIndex: room.currentTeamIndex,
-      roundNumber: room.roundNumber,
-      totalRounds: room.totalRounds,
-      currentRound: room.currentRound ? {
-        phase: room.currentRound.phase,
-        clues: room.currentRound.clues,
-        clueCount: room.currentRound.clueCount,
-        timeLeft: room.currentRound.timeLeft,
-        activeTeamIndex: room.currentRound.activeTeamIndex,
-        giverIndex: room.currentRound.giverIndex,
-        // Le mot secret uniquement pour le donneur
-        word: isGiver ? room.currentRound.word : null,
-        category: room.currentRound.category
-      } : null,
-      hostId: room.hostId,
-      isHost: player.id === room.hostId,
-      myId: player.id,
-      myTeamIndex: room.teams.findIndex(t => t.players.some(p => p.id === player.id))
-    };
-
-    socket.emit('game-state', state);
-  });
-}
-
-io.on('connection', (socket) => {
-  console.log(`Joueur connecté: ${socket.id}`);
-
-  // Créer une room
-  socket.on('create-room', ({ pseudo, totalRounds = 10 }) => {
-    const roomCode = generateRoomCode();
-    const playerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    const player = {
-      id: playerId,
-      pseudo,
-      socketId: socket.id
-    };
-
-    const room = {
-      code: roomCode,
-      hostId: playerId,
-      players: [player],
-      teams: [],
-      phase: 'lobby', // lobby, playing, finished
-      currentTeamIndex: 0,
-      roundNumber: 0,
-      totalRounds,
-      currentRound: null,
-      usedWords: [],
-      timer: null
-    };
-
-    rooms.set(roomCode, room);
-    socket.join(roomCode);
-    socket.roomCode = roomCode;
-    socket.playerId = playerId;
-
-    socket.emit('room-created', { roomCode, playerId });
-    broadcastGameState(roomCode);
-
-    console.log(`Room créée: ${roomCode} par ${pseudo}`);
-  });
-
-  // Rejoindre une room
-  socket.on('join-room', ({ roomCode, pseudo }) => {
-    const code = roomCode.toUpperCase();
-    const room = rooms.get(code);
-
-    if (!room) {
-      socket.emit('error', { message: 'Code de partie invalide' });
-      return;
-    }
-
-    if (room.phase !== 'lobby') {
-      socket.emit('error', { message: 'La partie a déjà commencé' });
-      return;
-    }
-
-    if (room.players.length >= 8) {
-      socket.emit('error', { message: 'La partie est complète (8 joueurs max)' });
-      return;
-    }
-
-    const playerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const player = {
-      id: playerId,
-      pseudo,
-      socketId: socket.id
-    };
-
-    room.players.push(player);
-    socket.join(code);
-    socket.roomCode = code;
-    socket.playerId = playerId;
-
-    socket.emit('room-joined', { roomCode: code, playerId });
-    broadcastGameState(code);
-
-    console.log(`${pseudo} a rejoint la room ${code}`);
-  });
-
-  // Lancer la partie
-  socket.on('start-game', () => {
-    const room = rooms.get(socket.roomCode);
-    if (!room) return;
-
-    if (socket.playerId !== room.hostId) {
-      socket.emit('error', { message: 'Seul l\'hôte peut lancer la partie' });
-      return;
-    }
-
-    if (room.players.length < 2) {
-      socket.emit('error', { message: 'Il faut au moins 2 joueurs' });
-      return;
-    }
-
-    // Créer les équipes
-    room.teams = createTeams(room.players);
-    room.phase = 'playing';
-    room.currentTeamIndex = 0;
-    room.roundNumber = 1;
-
-    // Initialiser le premier tour
-    initRound(room);
-    startTimer(socket.roomCode);
-
-    broadcastGameState(socket.roomCode);
-    console.log(`Partie lancée dans la room ${socket.roomCode}`);
-  });
-
-  // Donner un indice
-  socket.on('give-clue', ({ clue }) => {
-    const room = rooms.get(socket.roomCode);
-    if (!room || !room.currentRound) return;
-
-    const round = room.currentRound;
-    const activeTeam = room.teams[round.activeTeamIndex];
-    const giver = activeTeam.players[round.giverIndex];
-
-    if (socket.playerId !== giver.id) {
-      socket.emit('error', { message: 'Ce n\'est pas ton tour de donner un indice' });
-      return;
-    }
-
-    if (round.phase !== 'giving-clue') {
-      socket.emit('error', { message: 'Ce n\'est pas le moment de donner un indice' });
-      return;
-    }
-
-    const validation = validateClue(clue, round.word);
-    if (!validation.valid) {
-      socket.emit('error', { message: validation.reason });
-      return;
-    }
-
-    round.clues.push(clue.trim());
-    round.clueCount++;
-    round.phase = 'guessing';
-    round.timeLeft = 30;
-
-    broadcastGameState(socket.roomCode);
-  });
-
-  // Deviner le mot
-  socket.on('guess', ({ answer }) => {
-    const room = rooms.get(socket.roomCode);
-    if (!room || !room.currentRound) return;
-
-    const round = room.currentRound;
-    const activeTeam = room.teams[round.activeTeamIndex];
-    const guesser = activeTeam.players.find(p => p.id !== activeTeam.players[round.giverIndex].id);
-
-    if (socket.playerId !== guesser?.id) {
-      socket.emit('error', { message: 'Ce n\'est pas ton tour de deviner' });
-      return;
-    }
-
-    if (round.phase !== 'guessing') {
-      socket.emit('error', { message: 'Ce n\'est pas le moment de deviner' });
-      return;
-    }
-
-    const correct = checkAnswer(answer, round.word);
-
-    if (correct) {
-      // Bonne réponse !
-      activeTeam.score++;
-      clearInterval(room.timer);
-
-      io.to(socket.roomCode).emit('round-result', {
-        correct: true,
-        word: round.word,
-        team: round.activeTeamIndex,
-        stolen: false
-      });
-
-      // Tour suivant
-      setTimeout(() => {
-        nextTeam(room);
-        if (room.roundNumber > room.totalRounds) {
-          endGame(socket.roomCode);
-        } else {
-          initRound(room);
-          startTimer(socket.roomCode);
-          broadcastGameState(socket.roomCode);
-        }
-      }, 3000);
-    } else {
-      // Mauvaise réponse
-      if (round.clueCount >= 3) {
-        // 3 indices donnés, l'autre équipe peut voler
-        round.phase = 'stealing';
-        round.timeLeft = 15;
-        broadcastGameState(socket.roomCode);
-      } else {
-        // Encore des indices possibles
-        round.phase = 'giving-clue';
-        round.timeLeft = 30;
-        broadcastGameState(socket.roomCode);
-      }
-    }
-  });
-
-  // Voler le point
-  socket.on('steal', ({ answer }) => {
-    const room = rooms.get(socket.roomCode);
-    if (!room || !room.currentRound) return;
-
-    const round = room.currentRound;
-
-    if (round.phase !== 'stealing') {
-      socket.emit('error', { message: 'Ce n\'est pas le moment de voler' });
-      return;
-    }
-
-    // Vérifier que c'est quelqu'un de l'autre équipe
-    const playerTeamIndex = room.teams.findIndex(t => t.players.some(p => p.id === socket.playerId));
-    if (playerTeamIndex === round.activeTeamIndex) {
-      socket.emit('error', { message: 'Tu ne peux pas voler pour ton équipe' });
-      return;
-    }
-
-    const correct = checkAnswer(answer, round.word);
-    clearInterval(room.timer);
-
-    if (correct) {
-      room.teams[playerTeamIndex].score++;
-
-      io.to(socket.roomCode).emit('round-result', {
-        correct: true,
-        word: round.word,
-        team: playerTeamIndex,
-        stolen: true
-      });
-    } else {
-      io.to(socket.roomCode).emit('round-result', {
-        correct: false,
-        word: round.word,
-        team: null,
-        stolen: false
-      });
-    }
-
-    // Tour suivant
-    setTimeout(() => {
-      nextTeam(room);
-      if (room.roundNumber > room.totalRounds) {
-        endGame(socket.roomCode);
-      } else {
-        initRound(room);
-        startTimer(socket.roomCode);
-        broadcastGameState(socket.roomCode);
-      }
-    }, 3000);
-  });
-
-  // Passer le tour (timeout ou abandon)
-  socket.on('pass', () => {
-    const room = rooms.get(socket.roomCode);
-    if (!room || !room.currentRound) return;
-
-    clearInterval(room.timer);
-
-    io.to(socket.roomCode).emit('round-result', {
-      correct: false,
-      word: room.currentRound.word,
-      team: null,
-      stolen: false
-    });
-
-    setTimeout(() => {
-      nextTeam(room);
-      if (room.roundNumber > room.totalRounds) {
-        endGame(socket.roomCode);
-      } else {
-        initRound(room);
-        startTimer(socket.roomCode);
-        broadcastGameState(socket.roomCode);
-      }
-    }, 3000);
-  });
-
-  // Rejouer
-  socket.on('play-again', () => {
-    const room = rooms.get(socket.roomCode);
-    if (!room) return;
-
-    if (socket.playerId !== room.hostId) {
-      socket.emit('error', { message: 'Seul l\'hôte peut relancer une partie' });
-      return;
-    }
-
-    // Reset
-    room.phase = 'lobby';
-    room.teams = [];
-    room.currentTeamIndex = 0;
-    room.roundNumber = 0;
-    room.currentRound = null;
-    room.usedWords = [];
-
-    broadcastGameState(socket.roomCode);
-  });
-
-  // Déconnexion
-  socket.on('disconnect', () => {
-    console.log(`Joueur déconnecté: ${socket.id}`);
-
-    if (socket.roomCode) {
-      const room = rooms.get(socket.roomCode);
-      if (room) {
-        room.players = room.players.filter(p => p.socketId !== socket.id);
-
-        if (room.players.length === 0) {
-          clearInterval(room.timer);
-          rooms.delete(socket.roomCode);
-          console.log(`Room ${socket.roomCode} supprimée (vide)`);
-        } else {
-          // Si l'hôte part, on assigne un nouvel hôte
-          if (socket.playerId === room.hostId) {
-            room.hostId = room.players[0].id;
-          }
-          broadcastGameState(socket.roomCode);
-        }
-      }
-    }
-  });
-});
-
-// Timer
 function startTimer(roomCode) {
   const room = rooms.get(roomCode);
-  if (!room) return;
+  if (!room || !room.gameState) return;
 
-  clearInterval(room.timer);
+  // Clear any existing timer
+  if (room.gameState.timerInterval) {
+    clearInterval(room.gameState.timerInterval);
+  }
 
-  room.timer = setInterval(() => {
-    if (!room.currentRound) {
-      clearInterval(room.timer);
+  room.gameState.timer = room.settings.timerDuration;
+  room.gameState.timerInterval = setInterval(() => {
+    const currentRoom = rooms.get(roomCode);
+    if (!currentRoom || !currentRoom.gameState) {
+      clearInterval(room.gameState.timerInterval);
       return;
     }
 
-    room.currentRound.timeLeft--;
-    io.to(roomCode).emit('timer-tick', { timeLeft: room.currentRound.timeLeft });
+    currentRoom.gameState.timer--;
+    io.to(roomCode).emit('timer-tick', { timer: currentRoom.gameState.timer });
 
-    if (room.currentRound.timeLeft <= 0) {
-      clearInterval(room.timer);
-
-      if (room.currentRound.phase === 'giving-clue' || room.currentRound.phase === 'guessing') {
-        if (room.currentRound.clueCount >= 3) {
-          // Passer au vol
-          room.currentRound.phase = 'stealing';
-          room.currentRound.timeLeft = 15;
-          startTimer(roomCode);
-          broadcastGameState(roomCode);
-        } else if (room.currentRound.phase === 'guessing') {
-          // Retour à giving-clue si encore des indices
-          room.currentRound.phase = 'giving-clue';
-          room.currentRound.timeLeft = 30;
-          startTimer(roomCode);
-          broadcastGameState(roomCode);
-        } else {
-          // Timeout sur giving-clue sans indice
-          room.currentRound.phase = 'stealing';
-          room.currentRound.timeLeft = 15;
-          startTimer(roomCode);
-          broadcastGameState(roomCode);
-        }
-      } else if (room.currentRound.phase === 'stealing') {
-        // Personne n'a volé
-        io.to(roomCode).emit('round-result', {
-          correct: false,
-          word: room.currentRound.word,
-          team: null,
-          stolen: false
-        });
-
-        setTimeout(() => {
-          nextTeam(room);
-          if (room.roundNumber > room.totalRounds) {
-            endGame(roomCode);
-          } else {
-            initRound(room);
-            startTimer(roomCode);
-            broadcastGameState(roomCode);
-          }
-        }, 3000);
-      }
+    if (currentRoom.gameState.timer <= 0) {
+      clearInterval(currentRoom.gameState.timerInterval);
+      endRound(roomCode);
     }
   }, 1000);
 }
 
-// Fin de partie
-function endGame(roomCode) {
+function stopTimer(roomCode) {
   const room = rooms.get(roomCode);
-  if (!room) return;
-
-  clearInterval(room.timer);
-  room.phase = 'finished';
-  room.currentRound = null;
-
-  // Trier les équipes par score
-  const rankings = [...room.teams].sort((a, b) => b.score - a.score);
-
-  io.to(roomCode).emit('game-over', {
-    rankings: rankings.map((t, i) => ({
-      rank: i + 1,
-      team: t,
-      players: t.players.map(p => p.pseudo),
-      score: t.score
-    }))
-  });
-
-  broadcastGameState(roomCode);
+  if (room?.gameState?.timerInterval) {
+    clearInterval(room.gameState.timerInterval);
+    room.gameState.timerInterval = null;
+  }
 }
 
-// Health check
-app.get('/', (req, res) => {
+function endRound(roomCode) {
+  const room = rooms.get(roomCode);
+  if (!room || !room.gameState) return;
+
+  stopTimer(roomCode);
+  room.gameState.phase = 'roundEnd';
+
+  // Move to next team
+  room.gameState.currentTeamIndex++;
+
+  // Check if game is over
+  if (room.gameState.currentTeamIndex >= room.gameState.activeTeams.length) {
+    room.gameState.roundNumber++;
+    room.gameState.currentTeamIndex = 0;
+
+    // Rotate givers
+    room.gameState.activeTeams.forEach(team => {
+      room.gameState.currentGiverIndex[team.teamIndex] =
+        (room.gameState.currentGiverIndex[team.teamIndex] || 0) + 1;
+    });
+
+    // Check if we've done all rounds (each player has been giver once)
+    const maxRounds = Math.max(...room.gameState.activeTeams.map(t => t.players.length));
+    if (room.gameState.roundNumber > maxRounds) {
+      room.gameState.phase = 'gameOver';
+    }
+  }
+
+  io.to(roomCode).emit('game-state-update', getClientGameState(room));
+}
+
+function getClientGameState(room) {
+  if (!room.gameState) return null;
+
+  const currentGiver = getCurrentGiver(room);
+  const currentTeam = room.gameState.activeTeams[room.gameState.currentTeamIndex];
+
+  return {
+    phase: room.gameState.phase,
+    currentWordIndex: room.gameState.currentWordIndex,
+    totalWords: room.settings.wordsPerRound,
+    currentTeamIndex: currentTeam?.teamIndex,
+    currentTeamName: currentTeam ? room.teams[currentTeam.teamIndex].name : null,
+    currentTeamColor: currentTeam ? room.teams[currentTeam.teamIndex].color : null,
+    currentGiverId: currentGiver?.id,
+    currentGiverName: currentGiver?.name,
+    roundNumber: room.gameState.roundNumber,
+    totalRounds: Math.max(...room.gameState.activeTeams.map(t => t.players.length)),
+    timer: room.gameState.timer,
+    timerDuration: room.settings.timerDuration,
+    wordsFound: room.gameState.wordsFound,
+    wordsSkipped: room.gameState.wordsSkipped,
+    hintsGiven: room.gameState.hintsGiven,
+    scores: room.teams.map(t => ({ name: t.name, color: t.color, score: t.score }))
+  };
+}
+
+// Socket.io event handlers
+io.on('connection', (socket) => {
+  console.log('Player connected:', socket.id);
+
+  // Create room
+  socket.on('create-room', ({ playerName }) => {
+    const room = createRoom(socket.id, playerName);
+    socket.join(room.code);
+    playerRooms.set(socket.id, room.code);
+
+    socket.emit('room-created', {
+      code: room.code,
+      player: room.players[0],
+      room: {
+        players: room.players,
+        teams: room.teams,
+        settings: room.settings,
+        categories: Object.entries(wordsData.categories).map(([key, val]) => ({
+          key,
+          name: val.name,
+          emoji: val.emoji,
+          wordCount: val.words.length
+        }))
+      }
+    });
+  });
+
+  // Join room
+  socket.on('join-room', ({ roomCode, playerName }) => {
+    const code = roomCode.toUpperCase();
+    const room = rooms.get(code);
+
+    if (!room) {
+      socket.emit('error', { message: 'Partie introuvable' });
+      return;
+    }
+
+    if (room.gameState && room.gameState.phase !== 'gameOver') {
+      socket.emit('error', { message: 'Partie déjà en cours' });
+      return;
+    }
+
+    // Find team with fewest players
+    let minPlayers = Infinity;
+    let teamIndex = 0;
+    room.teams.forEach((team, idx) => {
+      if (team.players.length < minPlayers) {
+        minPlayers = team.players.length;
+        teamIndex = idx;
+      }
+    });
+
+    const player = {
+      id: socket.id,
+      name: playerName,
+      teamIndex,
+      isHost: false
+    };
+
+    room.players.push(player);
+    room.teams[teamIndex].players.push(socket.id);
+
+    socket.join(code);
+    playerRooms.set(socket.id, code);
+
+    socket.emit('room-joined', {
+      code,
+      player,
+      room: {
+        players: room.players,
+        teams: room.teams,
+        settings: room.settings,
+        categories: Object.entries(wordsData.categories).map(([key, val]) => ({
+          key,
+          name: val.name,
+          emoji: val.emoji,
+          wordCount: val.words.length
+        }))
+      }
+    });
+
+    socket.to(code).emit('player-joined', { player, players: room.players, teams: room.teams });
+  });
+
+  // Update settings (host only)
+  socket.on('update-settings', ({ settings }) => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || room.hostId !== socket.id) return;
+
+    room.settings = { ...room.settings, ...settings };
+    io.to(code).emit('settings-updated', { settings: room.settings });
+  });
+
+  // Update teams
+  socket.on('update-teams', ({ teams }) => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || room.hostId !== socket.id) return;
+
+    room.teams = teams;
+
+    // Update player teamIndex
+    room.players.forEach(player => {
+      const teamIdx = teams.findIndex(t => t.players.includes(player.id));
+      player.teamIndex = teamIdx >= 0 ? teamIdx : 0;
+    });
+
+    io.to(code).emit('teams-updated', { teams: room.teams, players: room.players });
+  });
+
+  // Change player team
+  socket.on('change-team', ({ playerId, newTeamIndex }) => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || room.hostId !== socket.id) return;
+
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    // Remove from old team
+    room.teams[player.teamIndex].players = room.teams[player.teamIndex].players.filter(id => id !== playerId);
+
+    // Add to new team
+    player.teamIndex = newTeamIndex;
+    room.teams[newTeamIndex].players.push(playerId);
+
+    io.to(code).emit('teams-updated', { teams: room.teams, players: room.players });
+  });
+
+  // Add/remove team
+  socket.on('add-team', () => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || room.hostId !== socket.id || room.teams.length >= 4) return;
+
+    const teamColor = TEAM_COLORS[room.teams.length];
+    room.teams.push({ name: teamColor.name, color: teamColor.color, players: [], score: 0 });
+
+    io.to(code).emit('teams-updated', { teams: room.teams, players: room.players });
+  });
+
+  socket.on('remove-team', ({ teamIndex }) => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || room.hostId !== socket.id || room.teams.length <= 2) return;
+
+    // Move players to first team
+    const playersToMove = room.teams[teamIndex].players;
+    playersToMove.forEach(playerId => {
+      const player = room.players.find(p => p.id === playerId);
+      if (player) {
+        player.teamIndex = 0;
+        room.teams[0].players.push(playerId);
+      }
+    });
+
+    room.teams.splice(teamIndex, 1);
+
+    // Update team indices
+    room.players.forEach(player => {
+      if (player.teamIndex >= teamIndex) {
+        player.teamIndex = Math.max(0, player.teamIndex - 1);
+      }
+    });
+
+    io.to(code).emit('teams-updated', { teams: room.teams, players: room.players });
+  });
+
+  // Start game
+  socket.on('start-game', () => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || room.hostId !== socket.id) return;
+
+    // Validate teams have at least 1 player each
+    const activeTeams = room.teams.filter(t => t.players.length > 0);
+    if (activeTeams.length < 2) {
+      socket.emit('error', { message: 'Il faut au moins 2 équipes avec des joueurs' });
+      return;
+    }
+
+    // Reset scores
+    room.teams.forEach(team => team.score = 0);
+
+    // Initialize game state
+    room.gameState = createGameState(room);
+    room.gameState.currentGiverIndex = {};
+    room.gameState.activeTeams.forEach(team => {
+      room.gameState.currentGiverIndex[team.teamIndex] = 0;
+    });
+
+    io.to(code).emit('game-started', getClientGameState(room));
+  });
+
+  // Giver ready - start playing
+  socket.on('giver-ready', () => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || !room.gameState) return;
+
+    const currentGiver = getCurrentGiver(room);
+    if (currentGiver.id !== socket.id) return;
+
+    room.gameState.phase = 'playing';
+    room.gameState.hintsGiven = 0;
+    startTimer(code);
+
+    // Send current word only to giver
+    const currentWord = room.gameState.words[room.gameState.currentWordIndex];
+    socket.emit('current-word', { word: currentWord.word, category: currentWord.category, emoji: currentWord.emoji });
+
+    io.to(code).emit('game-state-update', getClientGameState(room));
+  });
+
+  // Hint given (track count)
+  socket.on('hint-given', () => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || !room.gameState) return;
+
+    room.gameState.hintsGiven++;
+    io.to(code).emit('game-state-update', getClientGameState(room));
+  });
+
+  // Word found
+  socket.on('word-found', ({ finderId }) => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || !room.gameState || room.gameState.phase !== 'playing') return;
+
+    const currentGiver = getCurrentGiver(room);
+    if (currentGiver.id !== socket.id) return;
+
+    const currentWord = room.gameState.words[room.gameState.currentWordIndex];
+    const finder = room.players.find(p => p.id === finderId);
+
+    room.gameState.wordsFound.push({
+      word: currentWord.word,
+      category: currentWord.category,
+      foundBy: finder?.name || 'Inconnu',
+      foundByTeam: finder?.teamIndex
+    });
+
+    // Award point to finder's team
+    if (finder) {
+      room.teams[finder.teamIndex].score++;
+    }
+
+    // Move to next word
+    room.gameState.currentWordIndex++;
+
+    // Check if round is over
+    if (room.gameState.currentWordIndex >=
+        (room.gameState.currentTeamIndex + 1) * room.settings.wordsPerRound) {
+      endRound(code);
+      return;
+    }
+
+    // Send next word to giver
+    const nextWord = room.gameState.words[room.gameState.currentWordIndex];
+    socket.emit('current-word', { word: nextWord.word, category: nextWord.category, emoji: nextWord.emoji });
+
+    io.to(code).emit('game-state-update', getClientGameState(room));
+  });
+
+  // Word skipped
+  socket.on('word-skipped', () => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || !room.gameState || room.gameState.phase !== 'playing') return;
+
+    const currentGiver = getCurrentGiver(room);
+    if (currentGiver.id !== socket.id) return;
+
+    const currentWord = room.gameState.words[room.gameState.currentWordIndex];
+
+    room.gameState.wordsSkipped.push({
+      word: currentWord.word,
+      category: currentWord.category
+    });
+
+    // Move to next word
+    room.gameState.currentWordIndex++;
+
+    // Check if round is over (no more words)
+    if (room.gameState.currentWordIndex >=
+        (room.gameState.currentTeamIndex + 1) * room.settings.wordsPerRound) {
+      endRound(code);
+      return;
+    }
+
+    // Send next word to giver
+    const nextWord = room.gameState.words[room.gameState.currentWordIndex];
+    socket.emit('current-word', { word: nextWord.word, category: nextWord.category, emoji: nextWord.emoji });
+
+    io.to(code).emit('game-state-update', getClientGameState(room));
+  });
+
+  // Continue to next round
+  socket.on('continue-game', () => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || !room.gameState || room.hostId !== socket.id) return;
+
+    if (room.gameState.phase === 'gameOver') {
+      socket.emit('error', { message: 'La partie est terminée' });
+      return;
+    }
+
+    // Reset round state
+    room.gameState.phase = 'ready';
+    room.gameState.wordsFound = [];
+    room.gameState.wordsSkipped = [];
+    room.gameState.hintsGiven = 0;
+
+    io.to(code).emit('game-state-update', getClientGameState(room));
+  });
+
+  // Play again
+  socket.on('play-again', () => {
+    const code = playerRooms.get(socket.id);
+    const room = rooms.get(code);
+
+    if (!room || room.hostId !== socket.id) return;
+
+    // Reset everything
+    room.teams.forEach(team => team.score = 0);
+    room.gameState = null;
+
+    io.to(code).emit('game-reset', {
+      players: room.players,
+      teams: room.teams,
+      settings: room.settings
+    });
+  });
+
+  // Leave room
+  socket.on('leave-room', () => {
+    handleDisconnect(socket);
+  });
+
+  // Disconnect
+  socket.on('disconnect', () => {
+    handleDisconnect(socket);
+  });
+
+  function handleDisconnect(socket) {
+    const code = playerRooms.get(socket.id);
+    if (!code) return;
+
+    const room = rooms.get(code);
+    if (!room) return;
+
+    // Remove player from room
+    const playerIndex = room.players.findIndex(p => p.id === socket.id);
+    if (playerIndex >= 0) {
+      const player = room.players[playerIndex];
+      room.teams[player.teamIndex].players = room.teams[player.teamIndex].players.filter(id => id !== socket.id);
+      room.players.splice(playerIndex, 1);
+    }
+
+    playerRooms.delete(socket.id);
+    socket.leave(code);
+
+    // If host left, assign new host
+    if (room.hostId === socket.id && room.players.length > 0) {
+      room.hostId = room.players[0].id;
+      room.players[0].isHost = true;
+    }
+
+    // If room is empty, delete it
+    if (room.players.length === 0) {
+      stopTimer(code);
+      rooms.delete(code);
+      console.log('Room deleted:', code);
+      return;
+    }
+
+    io.to(code).emit('player-left', {
+      playerId: socket.id,
+      players: room.players,
+      teams: room.teams,
+      newHostId: room.hostId
+    });
+
+    console.log('Player disconnected:', socket.id);
+  }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
   res.json({ status: 'ok', rooms: rooms.size });
 });
 
-server.listen(PORT, () => {
-  console.log(`🎮 Serveur Mot de Passe démarré sur le port ${PORT}`);
+// Categories endpoint
+app.get('/categories', (req, res) => {
+  const categories = Object.entries(wordsData.categories).map(([key, val]) => ({
+    key,
+    name: val.name,
+    emoji: val.emoji,
+    wordCount: val.words.length
+  }));
+  res.json(categories);
+});
+
+const PORT = process.env.PORT || 3001;
+httpServer.listen(PORT, () => {
+  console.log(`🎮 Mot de Passe server running on port ${PORT}`);
 });
